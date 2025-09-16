@@ -1,0 +1,634 @@
+{
+  "name": "RSS Kgnvsk",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "feedUrl": "https://rss.app/feeds/UQClmFxUGm1gjIST.xml"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        -16
+      ],
+      "id": "b6036476-dce3-4880-b2e1-24c0c99b3060",
+      "name": "Read RSS Feed"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8ef8b95f-646a-4750-bdcb-e63134156185",
+              "name": "Date",
+              "value": "={{ $json.title }}\n\n{{ $json.contentSnippet }}",
+              "type": "string"
+            },
+            {
+              "id": "95e21ffe-c42f-4ceb-b112-5d1645cbfc58",
+              "name": "Img",
+              "value": "={{ ($json.content || '').match(/src=[\"']([^\"']+)[\"']/i)?.[1] || null }}",
+              "type": "string"
+            },
+            {
+              "id": "1fb837aa-ba08-48f7-85f4-2041a710d63a",
+              "name": "Url",
+              "value": "={{ $json.link }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "657c4271-e9d8-46db-aaf3-986796d2f96e",
+      "name": "take date2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        32,
+        336
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.PREVIEW_NEWS }}",
+        "text": "={{ $item(\"0\").$node[\"Message a model\"].json[\"message\"][\"content\"] }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Publish",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2240,
+        336
+      ],
+      "id": "643253c9-76b4-4078-868b-4d775737a020",
+      "name": "Send to Moderation",
+      "webhookId": "c6e87ebe-3e2f-492e-8f62-9125d8e6aacc",
+      "credentials": {
+        "telegramApi": {
+          "id": "RRNFUFsHsJXSePX7",
+          "name": "Vova Test"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Переклади новину на українську\n\nВхід:\n\nTEXT: {{ $('take date2').item.json.Date }}\nURL: {{ $('take date2').item.json.Url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1728,
+        336
+      ],
+      "id": "1148b99a-e5e9-4aaa-ba59-6e21366f188d",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "hjFXu25q7FE5l3Q0",
+          "name": "Billing AI GET"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "rss_kgnvsk",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $('take date2').item.json.Url }}"
+            },
+            {
+              "fieldId": "text",
+              "fieldValue": "=/{{ $('take date2').item.json.Date }}/"
+            },
+            {
+              "fieldId": "img",
+              "fieldValue": "={{ $('take date2').item.json.Img }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $item(\"0\").$node[\"Дата\"].json[\"date\"] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        336
+      ],
+      "id": "0e0514f6-2862-465d-aec2-58b5d786ee6a",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "bGyzzcGvi05iq7yw",
+          "name": "2GET GUYS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -272,
+        944
+      ],
+      "id": "77260083-fd2d-4f1f-8df4-e7b89982e3ca",
+      "name": "Telegram Trigger",
+      "webhookId": "44b63030-19ba-443f-bc72-7c56a4932e49",
+      "credentials": {
+        "telegramApi": {
+          "id": "RRNFUFsHsJXSePX7",
+          "name": "Vova Test"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.PUBLISH_NEWS }}",
+        "text": "={{ $json.text }}",
+        "replyMarkup": "inlineKeyboard",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        80,
+        944
+      ],
+      "id": "abe7f55d-c35f-4377-96e3-356d98d284ca",
+      "name": "Publish to Channel",
+      "webhookId": "c6e87ebe-3e2f-492e-8f62-9125d8e6aacc",
+      "credentials": {
+        "telegramApi": {
+          "id": "RRNFUFsHsJXSePX7",
+          "name": "Vova Test"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Беремо перший апдейт\nconst update = items[0]?.json || {};\n\n// Підтримуємо різні типи вхідних повідомлень:\n// 1) callback_query.message (як у вашому прикладі)\n// 2) channel_post / edited_channel_post (для зворотної сумісності)\nconst input =\n\t(update.callback_query && update.callback_query.message) ||\n\tupdate.channel_post ||\n\tupdate.edited_channel_post ||\n\t{};\n\n// Дістаємо текст/підпис та сутності\nconst originalText = input.text || input.caption || \"\";\nconst entities = input.entities || input.caption_entities || [];\n\n// Якщо текст порожній — повертаємо порожній результат\nif (!originalText) {\n\treturn [{ json: { text: \"\" } }];\n}\n\n// Масив для побудови розмітки\nlet formattedText = originalText.split(\"\");\n\n// Сортуємо сутності за offset у зворотному порядку,\n// щоб при вставці тегів не з'їжджали індекси\nentities.sort((a, b) => (b.offset ?? 0) - (a.offset ?? 0));\n\n// Обробляємо кожну сутність\nfor (const entity of entities) {\n\tconst start = entity.offset ?? 0;\n\tconst end = start + (entity.length ?? 0);\n\n\t// Захист від некоректних меж\n\tif (start < 0 || end > originalText.length || start >= end) continue;\n\n\tswitch (entity.type) {\n\t\tcase \"bold\":\n\t\t\tformattedText[start] = `<b>${formattedText[start]}`;\n\t\t\tformattedText[end - 1] += `</b>`;\n\t\t\tbreak;\n\t\tcase \"italic\":\n\t\t\tformattedText[start] = `<i>${formattedText[start]}`;\n\t\t\tformattedText[end - 1] += `</i>`;\n\t\t\tbreak;\n\t\tcase \"underline\":\n\t\t\tformattedText[start] = `<u>${formattedText[start]}`;\n\t\t\tformattedText[end - 1] += `</u>`;\n\t\t\tbreak;\n\t\tcase \"strikethrough\":\n\t\t\tformattedText[start] = `<s>${formattedText[start]}`;\n\t\t\tformattedText[end - 1] += `</s>`;\n\t\t\tbreak;\n\t\tcase \"spoiler\":\n\t\t\tformattedText[start] = `<tg-spoiler>${formattedText[start]}`;\n\t\t\tformattedText[end - 1] += `</tg-spoiler>`;\n\t\t\tbreak;\n\t\tcase \"text_link\": {\n\t\t\t// у callback_query.message entity.url вже містить посилання\n\t\t\tconst url =\n\t\t\t\tentity.url ||\n\t\t\t\t// необов'язково: як fallback можна взяти data з callback_query, якщо вона схожа на URL\n\t\t\t\t(update.callback_query && update.callback_query.data) ||\n\t\t\t\t\"#\";\n\t\t\tformattedText[start] = `<a href=\"${url}\">${formattedText[start]}`;\n\t\t\tformattedText[end - 1] += `</a>`;\n\t\t\tbreak;\n\t\t}\n\t\tcase \"code\":\n\t\t\tformattedText[start] = `<code>${formattedText[start]}`;\n\t\t\tformattedText[end - 1] += `</code>`;\n\t\t\tbreak;\n\t\tcase \"pre\":\n\t\t\tformattedText[start] = `<pre>${formattedText[start]}`;\n\t\t\tformattedText[end - 1] += `</pre>`;\n\t\t\tbreak;\n\t\tcase \"text_mention\":\n\t\t\tif (entity.user && entity.user.id) {\n\t\t\t\tformattedText[start] = `<a href=\"tg://user?id=${entity.user.id}\">${formattedText[start]}`;\n\t\t\t\tformattedText[end - 1] += `</a>`;\n\t\t\t}\n\t\t\tbreak;\n\t\tcase \"mention\":\n\t\t\t// залишаємо як є\n\t\t\tbreak;\n\t\tcase \"blockquote\":\n\t\t\tformattedText[start] = `<blockquote>${formattedText[start]}`;\n\t\t\tformattedText[end - 1] += `</blockquote>`;\n\t\t\tbreak;\n\t\tdefault:\n\t\t\t// інші типи ігноруємо\n\t\t\tbreak;\n\t}\n}\n\n// Склеюємо результат\nconst htmlText = formattedText.join(\"\");\n\n// Віддаємо\nreturn [{ json: { text: htmlText } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        944
+      ],
+      "id": "6380403d-e4a6-4862-8572-fd2b0162655d",
+      "name": "Formating"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst dateOnly = now.toISOString().split('T')[0]; // Повертає формат YYYY-MM-DD\nreturn {\n  json: {\n    date: dateOnly\n  }\n};\n\n"
+      },
+      "id": "3d841a2c-891b-45d9-931d-bd669ce3ff57",
+      "name": "Дата",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "rss_kgnvsk",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "created_at",
+              "condition": "eq",
+              "keyValue": "={{ $json.date }}"
+            }
+          ]
+        }
+      },
+      "id": "09f59549-b5d1-4dbc-86bb-7ced6034b4c3",
+      "name": "Get all news",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        768,
+        336
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "bGyzzcGvi05iq7yw",
+          "name": "2GET GUYS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={РОЛЬ} Ви - помічник, який допомагає мені шукати новини, що повторюються. Ваше завдання - взяти новину, яку я вам надсилаю, і перевірити, чи не існує вже схожої новини з тими самими фактами. У випадку якщо, я не надав пости для порівння, автоматично вважайте новину унікальною\n\nІнструкція:\n\n- Пошук збігів: Звертайте увагу на головні факти, ключові слова, імена, назви, дати, події та інші конкретні деталі.\n- Порівняння: Якщо схожа новина вже є:\nвраховуйте, чи це те саме формулювання фактів і просто доповнення до неї - тоді це дубляж, \nчи це абсолютно нова інформація , з новими фактами - тоді вона унікальна.\n- Чутливість до варіацій: Аналізуйте, чи можуть варіації в формулюваннях бути лише стилістичними, а не суттєвими.\n- Результат: Повідомте, якщо знайдено дубляж, вказавши, які саме факти збігаються, або підтвердіть, що новина є унікальною.\n\n{DATA} \nМоя новина: {{ $('take date2').item.json.Date }}\n\nШукайте дублі тут, аналізуйте  уважно всі пости і порівнюйте їх з моєю новиною, кожна новина для зручності розділена /.:\n{{ $json.text }}\n\n\n{ФОРМАТ ВІДПОВІДІ}\n- Якщо новина є дубляжом, відповідайте **Так**.\n- Якщо новина унікальна, відповідайте **Ні**.\n- Не додавайте жодних додаткових коментарів чи пояснень."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3b6eb4a9-3043-4a1b-ab62-1c9bf7485d0c",
+      "name": "COPY",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [
+        1120,
+        336
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "6YTBYyebqsSllqcV",
+          "name": "MKey"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "text"
+            }
+          ]
+        },
+        "options": {
+          "includeBinaries": false
+        }
+      },
+      "id": "d88272c6-9284-4caa-85c7-cd202b395c85",
+      "name": "Aggregate2",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        928,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "rss_kgnvsk",
+        "limit": 1,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "url",
+              "condition": "eq",
+              "keyValue": "={{ $json.Url }}"
+            }
+          ]
+        }
+      },
+      "id": "4c0d35e6-27ed-4173-8e6e-3cef004ef5af",
+      "name": "Check URL",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        224,
+        144
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "bGyzzcGvi05iq7yw",
+          "name": "2GET GUYS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7d91f938-b92a-4213-8581-14d393ff919e",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        384,
+        144
+      ],
+      "id": "8115639c-b894-4880-97a3-24b402772182",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        592,
+        32
+      ],
+      "id": "8dd272fb-31d6-4bcb-89f4-45d687817b52",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "b376b8d6-b353-4d0c-ae17-0ebb234ea03c",
+              "leftValue": "={{ $item(\"0\").$node[\"COPY\"].json[\"message\"][\"content\"] }}",
+              "rightValue": "Ні",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "8f991c19-79ac-450d-80e2-64394937786e",
+      "name": "Unique news?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.1,
+      "position": [
+        1488,
+        336
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        608
+      ],
+      "id": "8c94d6ee-0980-444a-a948-3edf1d3d06a1",
+      "name": "No Operation, do nothing1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Read RSS Feed": {
+      "main": [
+        [
+          {
+            "node": "take date2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "take date2": {
+      "main": [
+        [
+          {
+            "node": "Check URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Moderation": {
+      "main": [
+        []
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Send to Moderation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Formating",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formating": {
+      "main": [
+        [
+          {
+            "node": "Publish to Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Дата": {
+      "main": [
+        [
+          {
+            "node": "Get all news",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get all news": {
+      "main": [
+        [
+          {
+            "node": "Aggregate2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate2": {
+      "main": [
+        [
+          {
+            "node": "COPY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check URL": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Дата",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "COPY": {
+      "main": [
+        [
+          {
+            "node": "Unique news?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unique news?": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "81fadb50-36a1-492d-b2b2-a0cefbc8a0f3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "abb71d5f4d7b1a8f79ed478f0e79f8ed789f367279af9a8c6a5c3b45faa5304c"
+  },
+  "id": "ehQlGzJVYe08Y1hj",
+  "tags": []
+}

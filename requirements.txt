@@ -1,0 +1,9 @@
+python-dotenv
+requests
+feedparser
+beautifulsoup4
+python-telegram-bot==21.0.1
+telegraph
+openai
+trafilatura
+

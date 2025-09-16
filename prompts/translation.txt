@@ -1,0 +1,27 @@
+Translate the following news article into Ukrainian. It is crucial that you preserve all HTML tags (like <img>, <p>, <h1>, <strong>, etc.) exactly as they are in the original text. Only translate the text content within these tags.
+
+CRITICAL REQUIREMENTS:
+1. Do NOT truncate or shorten the content - translate the ENTIRE article completely
+2. Do NOT add any punctuation marks (periods, colons, etc.) to the end of the title or short description
+3. Preserve ALL paragraphs, headers, and images from the original content
+4. If the content is long, continue translating until the very end - do not stop early
+
+TITLE:
+{title}
+
+SHORT DESCRIPTION:
+{short_description}
+
+---
+
+HTML CONTENT:
+{content_html}
+
+---
+
+Provide the response in the following JSON format, and nothing else:
+{{
+  "translated_title": "...",
+  "translated_short_description": "...",
+  "translated_content_html": "..."
+}}

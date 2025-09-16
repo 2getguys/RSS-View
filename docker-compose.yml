@@ -1,0 +1,13 @@
+services:
+  news-bot:
+    build: .
+    container_name: news_bot
+    restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+      - ./debug_files:/app/debug_files

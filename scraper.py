@@ -72,6 +72,19 @@ def scrape_with_beautifulsoup(raw_html: str, url: str) -> Optional[Dict[str, str
             if not article_body:
                 return None
 
+        # For AARP articles, collect ALL paragraphs from the entire page to avoid missing content
+        all_paragraphs = []
+        if 'aarp.org' in url:
+            print("🔍 AARP site detected - collecting all paragraphs from entire page")
+            # Get all paragraphs from the entire document
+            for p in soup.find_all('p'):
+                text = p.get_text(strip=True)
+                if (len(text) > 30 and  # Substantial content
+                    not any(skip in text.lower() for skip in ['cookie', 'privacy', 'terms', 'subscribe', 'newsletter', 'advertisement']) and
+                    not p.find_parent(['nav', 'footer', 'aside', 'header'])):  # Not in navigation/footer
+                    all_paragraphs.append(p)
+            print(f"📊 Found {len(all_paragraphs)} paragraphs across entire page")
+
         # --- Pre-cleaning of the article body ---
         for element in article_body(['script', 'style', 'nav', 'footer', 'aside', 'form', 'iframe', 'header']):
             element.decompose()
@@ -91,7 +104,17 @@ def scrape_with_beautifulsoup(raw_html: str, url: str) -> Optional[Dict[str, str
         main_image_url = None
 
         # Process all relevant tags in their document order
-        for element in article_body.find_all(['p', 'h1', 'h2', 'h3', 'img', 'figure']):
+        elements_to_process = article_body.find_all(['p', 'h1', 'h2', 'h3', 'img', 'figure'])
+        
+        # For AARP, add all paragraphs from entire page to ensure complete content
+        if 'aarp.org' in url and all_paragraphs:
+            # Add paragraphs that aren't already in the main container
+            for p in all_paragraphs:
+                if p not in elements_to_process:
+                    elements_to_process.append(p)
+            print(f"📝 Processing {len(elements_to_process)} total elements (including page-wide paragraphs)")
+        
+        for element in elements_to_process:
             if element.name in ['p', 'h1', 'h2', 'h3']:
                 text = element.get_text(strip=True)
                 if not text or (len(text) < 20 and element.name == 'p'):
@@ -192,6 +215,10 @@ def clean_trafilatura_html(html_content: str) -> str:
     """Clean trafilatura HTML output."""
     if not html_content:
         return ""
+    
+    # Remove markdown code blocks that trafilatura sometimes adds
+    html_content = re.sub(r'```html\s*', '', html_content)
+    html_content = re.sub(r'```\s*$', '', html_content)
     
     # Remove document structure tags
     html_content = re.sub(r'</?html[^>]*>', '', html_content, flags=re.IGNORECASE)

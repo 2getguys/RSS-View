@@ -118,6 +118,14 @@ async def run_bot():
     """Starts the bot to listen for callbacks."""
     print("🤖 Initializing Telegram bot...")
     await application.initialize()
+
+    # Delete any existing webhook to ensure polling works
+    print("🗑️  Checking for and deleting any existing webhook...")
+    if await application.bot.delete_webhook():
+        print("✅ Webhook deleted successfully.")
+    else:
+        print("ℹ️  No webhook was active.")
+
     print("🚀 Starting Telegram bot...")
     await application.start()
     print("📡 Starting polling for updates...")

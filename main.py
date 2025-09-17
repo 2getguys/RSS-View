@@ -63,7 +63,7 @@ async def check_news_job():
                 
                 # 2. Scrape article content
                 print("🕷️ Scraping article content...")
-                scraped_content = scrape_article_content(link)
+                scraped_content = await asyncio.to_thread(scrape_article_content, link)
                 if not scraped_content:
                     print(f"❌ Failed to scrape content")
                     continue
@@ -82,8 +82,11 @@ async def check_news_job():
                 
                 # 3. Check for semantic uniqueness with AI FIRST (before expensive operations)
                 print("🤖 Checking for duplicates with AI...")
-                todays_articles = get_todays_articles_content()
-                if not is_article_unique(scraped_content['content_html'], todays_articles):
+                todays_articles = await asyncio.to_thread(get_todays_articles_content)
+                is_duplicate = await asyncio.to_thread(
+                    is_article_unique, scraped_content['content_html'], todays_articles
+                )
+                if not is_duplicate:
                     print("⚠️ Article appears to be a semantic duplicate, skipping...")
                     continue
                 
@@ -92,7 +95,9 @@ async def check_news_job():
                 # 4. Process, clean, and translate article in one step
                 print("🔧 Processing, cleaning, and translating article...")
                 additional_context = scraped_content.get('additional_context', '')
-                processed_content = process_and_translate_article(scraped_content['content_html'], additional_context)
+                processed_content = await asyncio.to_thread(
+                    process_and_translate_article, scraped_content['content_html'], additional_context
+                )
                 
                 # Log processing stats
                 original_paragraphs = scraped_content['content_html'].count('<p>')
@@ -103,7 +108,7 @@ async def check_news_job():
 
                 # 5. Generate title and description with a placeholder for the link
                 print("📝 Generating title and description with placeholder...")
-                title_data = generate_title_and_description(processed_content)
+                title_data = await asyncio.to_thread(generate_title_and_description, processed_content)
                 title_with_placeholder = title_data.get('title', 'Новина')
                 description_with_placeholder = title_data.get('description', 'Цікава стаття')
 
@@ -113,7 +118,7 @@ async def check_news_job():
                 
                 # 6. Create Telegraph page using the clean title
                 print("📝 Creating Telegraph page...")
-                telegraph_url = create_telegraph_page(clean_title_for_telegraph, processed_content)
+                telegraph_url = await asyncio.to_thread(create_telegraph_page, clean_title_for_telegraph, processed_content)
                 
                 if not telegraph_url:
                     print("❌ Failed to create Telegraph page")
@@ -129,7 +134,7 @@ async def check_news_job():
 
                 # 8. Save to database
                 print("💾 Saving to database...")
-                article_id = add_article_base(link, final_title, processed_content)
+                article_id = await asyncio.to_thread(add_article_base, link, final_title, processed_content)
                 if not article_id:
                     print("❌ Failed to save article to database")
                     continue
@@ -147,7 +152,7 @@ async def check_news_job():
                 print(f"💾 Saved processed content to: {processed_file}")
 
                 # 10. Update database with Telegraph URL
-                update_article_translation(article_id, processed_content, telegraph_url)
+                await asyncio.to_thread(update_article_translation, article_id, processed_content, telegraph_url)
 
                 # 11. Send to Telegram for moderation
                 print("📱 Sending to Telegram for moderation...")
@@ -165,7 +170,7 @@ async def check_news_job():
                 # Small delay between processing multiple articles
                 if i < len(articles):
                     print("⏱️ Waiting 5 seconds before next article...")
-                    time.sleep(5)
+                    await asyncio.sleep(5)
             
             if processed_count > 0:
                 print(f"📈 Successfully processed {processed_count} new article(s)")

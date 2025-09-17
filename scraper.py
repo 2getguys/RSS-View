@@ -149,11 +149,33 @@ def scrape_with_beautifulsoup(raw_html: str, url: str) -> Optional[Dict[str, str
         if not content_html.strip():
             return None
             
+        # Collect additional context from the entire page
+        additional_context = ""
+        if 'aarp.org' in url and all_paragraphs:
+            # For AARP, use all collected paragraphs as additional context
+            additional_paragraphs = []
+            for p in all_paragraphs:
+                text = p.get_text(strip=True)
+                if len(text) > 50:  # Only substantial paragraphs
+                    additional_paragraphs.append(f"<p>{text}</p>")
+            additional_context = "\n".join(additional_paragraphs)
+        else:
+            # For other sites, collect all text content from the page
+            all_text_elements = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'li'])
+            additional_paragraphs = []
+            for elem in all_text_elements:
+                text = elem.get_text(strip=True)
+                if (len(text) > 50 and 
+                    not any(skip in text.lower() for skip in ['cookie', 'subscribe', 'newsletter', 'advertisement', 'menu', 'navigation'])):
+                    additional_paragraphs.append(f"<{elem.name}>{text}</{elem.name}>")
+            additional_context = "\n".join(additional_paragraphs[:20])  # Limit to first 20 elements
+
         return {
             'title': title,
             'content_html': content_html,
             'image_url': main_image_url,
-            'short_description': short_description
+            'short_description': short_description,
+            'additional_context': additional_context
         }
         
     except Exception as e:
@@ -204,7 +226,8 @@ def scrape_with_trafilatura(raw_html: str, url: str) -> Optional[Dict[str, str]]
             'title': title,
             'content_html': cleaned_html,
             'image_url': main_image_url,
-            'short_description': short_description
+            'short_description': short_description,
+            'additional_context': ""  # Trafilatura doesn't provide additional context
         }
         
     except Exception as e:

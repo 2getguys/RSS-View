@@ -5,9 +5,10 @@ import os
 from database import init_db, article_exists, add_article_base, update_article_translation, get_todays_articles_content
 from rss_reader import get_latest_articles
 from scraper import scrape_article_content
-from ai_handler import is_article_unique, translate_content, clean_ads_from_content
+from ai_handler import is_article_unique, process_and_translate_article, generate_title_and_description
 from telegraph_client import create_telegraph_page
 from telegram_bot import send_for_moderation, run_bot, stop_bot
+from config import CHECK_INTERVAL_SECONDS
 
 # Global lock to prevent concurrent execution
 processing_lock = asyncio.Lock()
@@ -88,79 +89,70 @@ async def check_news_job():
                 
                 print("✅ Article is unique!")
                 
-                # 4. Clean ads from content using AI (only for unique articles)
-                print("🧹 Cleaning ads and promotional content...")
-                cleaned_content = clean_ads_from_content(scraped_content['content_html'])
-                scraped_content['content_html'] = cleaned_content
-                print(f"✅ Content cleaned ({len(cleaned_content)} chars after cleanup)")
+                # 4. Process, clean, and translate article in one step
+                print("🔧 Processing, cleaning, and translating article...")
+                additional_context = scraped_content.get('additional_context', '')
+                processed_content = process_and_translate_article(scraped_content['content_html'], additional_context)
                 
-                # 5. Save to database
-                print("💾 Saving to database...")
-                article_id = add_article_base(link, scraped_content['title'], scraped_content['content_html'])
-                if not article_id:
-                    print("❌ Failed to save article to database")
-                    continue
+                # Log processing stats
+                original_paragraphs = scraped_content['content_html'].count('<p>')
+                processed_paragraphs = processed_content.count('<p>')
+                print(f"✅ Article processed: {original_paragraphs} → {processed_paragraphs} paragraphs")
+                if additional_context:
+                    print(f"📝 Used {len(additional_context)} chars of additional context")
 
-                # 6. Translate the content
-                print(f"🌐 Translating to Ukrainian...")
-                translation = translate_content(
-                    scraped_content['title'], 
-                    scraped_content['content_html'],
-                    scraped_content.get('short_description', '')
-                )
-                translated_title = translation['translated_title']
-                translated_html = translation['translated_content_html']
-                translated_description = translation.get('translated_short_description', scraped_content.get('short_description', ''))
-                print(f"✅ Translation complete: '{translated_title}'")
+                # 5. Generate title and description with a placeholder for the link
+                print("📝 Generating title and description with placeholder...")
+                title_data = generate_title_and_description(processed_content)
+                title_with_placeholder = title_data.get('title', 'Новина')
+                description_with_placeholder = title_data.get('description', 'Цікава стаття')
 
-                # 7. Save content BEFORE translation (to check if AI truncates)
-                before_translation_file = f"{debug_dir}/before_translation_article_{i}.html"
-                with open(before_translation_file, 'w', encoding='utf-8') as f:
-                    f.write(f"<!-- Original Title: {scraped_content['title']} -->\n")
-                    f.write(f"<!-- URL: {link} -->\n")
-                    f.write(f"<!-- Content Length: {len(scraped_content['content_html'])} chars -->\n")
-                    f.write(f"<!-- Short Description: {scraped_content.get('short_description', '')} -->\n\n")
-                    f.write(scraped_content['content_html'])
-                print(f"💾 Saved content BEFORE translation to: {before_translation_file}")
-
-                # 8. Save Telegraph-ready data AFTER translation
-                telegraph_file = f"{debug_dir}/after_translation_article_{i}.html"
-                with open(telegraph_file, 'w', encoding='utf-8') as f:
-                    f.write(f"<!-- Original Title: {scraped_content['title']} -->\n")
-                    f.write(f"<!-- Translated Title: {translated_title} -->\n")
-                    f.write(f"<!-- URL: {link} -->\n")
-                    f.write(f"<!-- Original Length: {len(scraped_content['content_html'])} chars -->\n")
-                    f.write(f"<!-- Translated Length: {len(translated_html)} chars -->\n")
-                    f.write(f"<!-- Length Change: {len(translated_html) - len(scraped_content['content_html']):+d} chars -->\n\n")
-                    f.write(translated_html)
-                print(f"💾 Saved content AFTER translation to: {telegraph_file}")
+                # Extract a clean title for the Telegraph page (by removing the placeholder link)
+                import re
+                clean_title_for_telegraph = re.sub(r'<a href="LINK_PLACEHOLDER">(.+?)</a>', r'\1', title_with_placeholder)
                 
-                # Check if content was truncated during translation
-                original_paragraphs = len([p for p in scraped_content['content_html'].split('<p>') if p.strip()])
-                translated_paragraphs = len([p for p in translated_html.split('<p>') if p.strip()])
+                # 6. Create Telegraph page using the clean title
+                print("📝 Creating Telegraph page...")
+                telegraph_url = create_telegraph_page(clean_title_for_telegraph, processed_content)
                 
-                if translated_paragraphs < original_paragraphs * 0.8:  # If lost more than 20% of paragraphs
-                    print(f"⚠️ WARNING: Possible content truncation during translation!")
-                    print(f"   Original: {original_paragraphs} paragraphs, Translated: {translated_paragraphs} paragraphs")
-                else:
-                    print(f"✅ Translation preserved content: {original_paragraphs} → {translated_paragraphs} paragraphs")
-
-                # 9. Create Telegraph page
-                print("📄 Creating Telegraph page...")
-                telegraph_url = create_telegraph_page(translated_title, translated_html)
                 if not telegraph_url:
                     print("❌ Failed to create Telegraph page")
                     continue
                     
                 print(f"✅ Telegraph page created: {telegraph_url}")
-                
-                # 10. Update database with translation and Telegraph URL
-                update_article_translation(article_id, translated_html, telegraph_url)
+
+                # 7. Replace placeholder with the real Telegraph URL
+                final_title = title_with_placeholder.replace('LINK_PLACEHOLDER', telegraph_url)
+                final_description = description_with_placeholder.replace('LINK_PLACEHOLDER', telegraph_url)
+                print(f"✅ Generated final title: '{final_title}'")
+                print(f"✅ Generated final description: '{final_description}'")
+
+                # 8. Save to database
+                print("💾 Saving to database...")
+                article_id = add_article_base(link, final_title, processed_content)
+                if not article_id:
+                    print("❌ Failed to save article to database")
+                    continue
+
+                # 9. Save processed content for debugging
+                processed_file = f"{debug_dir}/processed_article_{i}.html"
+                with open(processed_file, 'w', encoding='utf-8') as f:
+                    f.write(f"<!-- Original Title: {scraped_content['title']} -->\n")
+                    f.write(f"<!-- Processed Title: {final_title} -->\n")
+                    f.write(f"<!-- URL: {link} -->\n")
+                    f.write(f"<!-- Original Length: {len(scraped_content['content_html'])} chars -->\n")
+                    f.write(f"<!-- Processed Length: {len(processed_content)} chars -->\n")
+                    f.write(f"<!-- Description: {final_description} -->\n")
+                    f.write(processed_content)
+                print(f"💾 Saved processed content to: {processed_file}")
+
+                # 10. Update database with Telegraph URL
+                update_article_translation(article_id, processed_content, telegraph_url)
 
                 # 11. Send to Telegram for moderation
                 print("📱 Sending to Telegram for moderation...")
                 try:
-                    await send_for_moderation(telegraph_url, translated_title, link, article_id, translated_description)
+                    await send_for_moderation(final_title, final_description, link, article_id)
                     print("✅ Sent to moderation channel successfully!")
                 except Exception as e:
                     print(f"❌ Error sending to Telegram: {e}")
@@ -197,8 +189,8 @@ async def scheduler_loop():
     while True:
         current_time = time.time()
         
-        # Check for news every 60 seconds
-        if current_time - last_check >= 60:
+        # Check for news every CHECK_INTERVAL_SECONDS
+        if current_time - last_check >= CHECK_INTERVAL_SECONDS:
             await check_news_job()
             last_check = current_time
         
@@ -211,30 +203,25 @@ async def scheduler_loop():
         await asyncio.sleep(1)
 
 async def main():
-    """Main function that sets up the bot and scheduler."""
-    print("🚀 Starting News Bot...")
-    
-    # Initialize database
-    print("💾 Initializing database...")
+    """Initializes and runs the bot and the news checking scheduler."""
     init_db()
     
-    # Start Telegram bot
-    print("🤖 Starting Telegram bot...")
-    await run_bot()
+    # Create tasks for the bot and the scheduler
+    bot_task = asyncio.create_task(run_bot())
+    scheduler_task = asyncio.create_task(scheduler_loop())
     
-    print("⏰ Setting up scheduler (every 1 minute)...")
-    print("✅ Scheduler started. Will check for news every minute.")
-    
-    # Run initial check
-    print("🔄 Running initial check...")
-    await check_news_job()
-    
-    # Start the scheduler loop
-    try:
-        await scheduler_loop()
-    except KeyboardInterrupt:
-        print("\n🛑 Shutting down...")
-        await stop_bot()
+    # Run them concurrently
+    await asyncio.gather(
+        bot_task,
+        scheduler_task
+    )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n shutting down...")
+        # Gracefully stop the bot
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(stop_bot())
+        print("Shutdown complete.")

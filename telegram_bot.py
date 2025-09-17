@@ -2,41 +2,24 @@ import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from config import TELEGRAM_BOT_TOKEN, PUBLISH_NEWS_CHANNEL_ID, PREVIEW_NEWS_CHANNEL_ID
-from ai_handler import find_best_word_for_link
 
 # Initialize the bot application
 application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-async def send_for_moderation(telegraph_url: str, title: str, original_url: str, article_id: int, short_description: str = ""):
-    """Sends a message with a Telegraph link and a 'Publish' button to the moderation channel."""
+async def send_for_moderation(title: str, short_description: str, original_url: str, article_id: int):
+    """Sends a message with embedded Telegraph link and a 'Publish' button to the moderation channel."""
     keyboard = [
         [InlineKeyboardButton("Опублікувати", callback_data=f"pub_{article_id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Використовуємо LLM для вибору найкращого слова для посилання
-    print("🤖 Вибираємо найкраще слово для посилання...")
-    best_word = find_best_word_for_link(title, short_description)
-    print(f"🎯 Обрано слово для посилання: '{best_word}'")
+    print("📝 Using AI-generated title and description with embedded link")
     
-    # Замінюємо обране слово на посилання в тексті
-    title_with_link = title
-    description_with_link = short_description
-    
-    if best_word in title:
-        title_with_link = title.replace(best_word, f'<a href="{telegraph_url}">{best_word}</a>', 1)
-    elif best_word in short_description:
-        description_with_link = short_description.replace(best_word, f'<a href="{telegraph_url}">{best_word}</a>', 1)
-    else:
-        # Якщо слово не знайдено, додаємо посилання до першого слова заголовка
-        words = title.split()
-        if words:
-            title_with_link = f'<a href="{telegraph_url}">{words[0]}</a> ' + ' '.join(words[1:])
-    
+    # Title and description already have embedded Telegraph links from AI
     # Формат: Заголовок (з посиланням на Telegraph)
     # Короткий опис
     # Джерело
-    message_text = f"<b>{title_with_link}</b>\n\n{description_with_link}\n\n<a href='{original_url}'>Джерело</a>"
+    message_text = f"<b>{title}</b>\n\n{short_description}\n\n<a href='{original_url}'>Джерело</a>"
 
     await application.bot.send_message(
         chat_id=PREVIEW_NEWS_CHANNEL_ID,

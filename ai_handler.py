@@ -17,33 +17,6 @@ def load_prompt(prompt_name: str) -> str:
         print(f"Warning: Prompt file {prompt_path} not found")
         return ""
 
-def clean_ads_from_content(content_html: str) -> str:
-    """
-    Uses OpenAI to remove advertising and promotional content from the article.
-    """
-    prompt_template = load_prompt("ad_cleanup")
-    if not prompt_template:
-        return content_html
-    
-    prompt = prompt_template.format(content_html=content_html)
-    
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Ти експерт з очищення новинного контенту від реклами та промоційних матеріалів."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.1,
-            max_tokens=4000
-        )
-        
-        cleaned_content = response.choices[0].message.content.strip()
-        return cleaned_content if cleaned_content else content_html
-        
-    except Exception as e:
-        print(f"Error cleaning ads with OpenAI: {e}")
-        return content_html  # Return original on failure
 
 def is_article_unique(new_article_content: str, existing_articles_content: List[str]) -> bool:
     """
@@ -57,20 +30,15 @@ def is_article_unique(new_article_content: str, existing_articles_content: List[
         return True
     
     existing_content_block = "\n\n---\n\n".join(existing_articles_content)
-    prompt = prompt_template.format(
-        new_content=new_article_content,
-        existing_content=existing_content_block
-    )
+    user_content = f"НОВА СТАТТЯ:\n{new_article_content}\n\nІСНУЮЧІ СТАТТІ:\n{existing_content_block}"
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini-2025-08-07",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that detects duplicate news articles."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": prompt_template},
+                {"role": "user", "content": user_content}
             ],
-            temperature=0,
-            max_tokens=10
         )
         answer = response.choices[0].message.content.strip().upper()
         return "UNIQUE" in answer
@@ -79,80 +47,81 @@ def is_article_unique(new_article_content: str, existing_articles_content: List[
         print(f"Error checking article uniqueness with OpenAI: {e}")
         return True
 
-def translate_content(title: str, content_html: str, short_description: str = "") -> dict:
-    """
-    Translates the article title and content into Ukrainian using OpenAI, preserving HTML tags.
-    """
-    prompt_template = load_prompt("translation")
-    if not prompt_template:
-        return {
-            "translated_title": title,
-            "translated_short_description": short_description,
-            "translated_content_html": content_html
-        }
-    
-    prompt = prompt_template.format(
-        title=title,
-        short_description=short_description,
-        content_html=content_html
-    )
 
+def process_and_translate_article(main_content: str, additional_context: str = "") -> str:
+    """
+    Process, clean, and translate article content in one step using LLM.
+    """
+    prompt_template = load_prompt("article_processing")
+    if not prompt_template:
+        return main_content
+    
+    # Prepare the content for analysis
+    user_message = f"ОСНОВНИЙ КОНТЕНТ СТАТТІ:\n{main_content}"
+    
+    if additional_context.strip():
+        user_message += f"\n\nДОДАТКОВИЙ КОНТЕКСТ (використовуй тільки релевантні частини):\n{additional_context}"
+    
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini-2025-08-07",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that translates text to Ukrainian, preserving HTML structure. Always translate the COMPLETE content without truncation."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": prompt_template},
+                {"role": "user", "content": user_message}
+            ],
+        )
+        
+        processed_content = response.choices[0].message.content.strip()
+        
+        # Remove any markdown code blocks if present
+        if processed_content.startswith('```html'):
+            processed_content = processed_content[7:]
+        if processed_content.endswith('```'):
+            processed_content = processed_content[:-3]
+        
+        return processed_content.strip()
+        
+    except Exception as e:
+        print(f"❌ Error processing article with OpenAI: {e}")
+        return main_content  # Return original if processing fails
+
+
+def generate_title_and_description(article_content: str) -> dict:
+    """
+    Generate Ukrainian title and description with embedded Telegraph link placeholder.
+    """
+    prompt_template = load_prompt("title_description_generation")
+    if not prompt_template:
+        return {
+            "title": "Новина",
+            "description": "Цікава стаття"
+        }
+    
+    user_message = f"КОНТЕНТ СТАТТІ:\n{article_content}"
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-5-mini-2025-08-07",
+            messages=[
+                {"role": "system", "content": prompt_template},
+                {"role": "user", "content": user_message}
             ],
             response_format={"type": "json_object"},
-            temperature=0.2,
-            max_tokens=16000  # Allow longer responses to prevent truncation
         )
         
-        translation_data = json.loads(response.choices[0].message.content)
+        result = json.loads(response.choices[0].message.content)
         
-        # Додаткове очищення перекладених текстів від кінцевих розділових знаків
-        if 'translated_title' in translation_data:
-            translation_data['translated_title'] = translation_data['translated_title'].rstrip('.,;:!?-–—').strip()
-        if 'translated_short_description' in translation_data:
-            translation_data['translated_short_description'] = translation_data['translated_short_description'].rstrip('.,;:!?-–—').strip()
+        # Clean any trailing punctuation just in case
+        if 'title' in result:
+            result['title'] = result['title'].rstrip('.,;:!?-–—').strip()
+        if 'description' in result:
+            result['description'] = result['description'].rstrip('.,;:!?-–—').strip()
         
-        return translation_data
-
+        return result
+        
     except Exception as e:
-        print(f"Error translating content with OpenAI: {e}")
+        print(f"❌ Error generating title and description with OpenAI: {e}")
         return {
-            "translated_title": title, # Return original on failure
-            "translated_short_description": short_description,
-            "translated_content_html": content_html
+            "title": "Новина",
+            "description": "Цікава стаття"
         }
-
-def find_best_word_for_link(title: str, short_description: str) -> str:
-    """
-    Uses OpenAI to find the best word in the title or description to hide the Telegraph link.
-    """
-    prompt_template = load_prompt("link_word_selection")
-    if not prompt_template:
-        return "стаття"
-    
-    prompt = prompt_template.format(
-        title=title,
-        short_description=short_description
-    )
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Ти експерт з вибору ключових слів для посилань."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=10
-        )
-        best_word = response.choices[0].message.content.strip()
-        return best_word if best_word else "стаття"
-
-    except Exception as e:
-        print(f"Error finding best word with OpenAI: {e}")
-        return "стаття"  # Default fallback

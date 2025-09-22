@@ -6,4 +6,5 @@ python-telegram-bot==21.0.1
 telegraph
 openai
 trafilatura
+httpx
 

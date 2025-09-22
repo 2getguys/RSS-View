@@ -125,3 +125,27 @@ def generate_title_and_description(article_content: str) -> dict:
             "title": "Новина",
             "description": "Цікава стаття"
         }
+def generate_facebook_post(article_content: str) -> str:
+    """
+    Generates a catchy Facebook post with a headline and a short summary.
+    """
+    prompt_template = load_prompt("facebook_post_generation")
+    if not prompt_template:
+        return "Подивіться цю новину!"
+
+    user_message = f"ARTICLE CONTENT:\n{article_content}"
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-5-mini-2025-08-07",
+            messages=[
+                {"role": "system", "content": prompt_template},
+                {"role": "user", "content": user_message}
+            ],
+        )
+        
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        print(f"❌ Error generating Facebook post with OpenAI: {e}")
+        return "Подивіться цю новину!"

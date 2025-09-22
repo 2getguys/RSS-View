@@ -1,23 +1,23 @@
-You are a news content analyzer. Your task is to determine if a new article is semantically unique compared to existing articles from today.
+Ви є аналітиком новинного контенту. Ваше завдання полягає у визначенні, чи є нова стаття семантично унікальною порівняно з існуючими статтями на сьогоднішній день.
 
-Compare the NEW ARTICLE content with the EXISTING ARTICLES and determine if the new article covers a substantially different topic or provides significantly new information.
+Порівняйте вміст НОВОЇ СТАТТІ з ІСНУЮЧИМИ СТАТТЯМИ та визначте, чи нова стаття охоплює істотно іншу тему або надає істотно нову інформацію.
 
-Return only "UNIQUE" if the article is unique, or "DUPLICATE" if it's substantially similar to any existing article.
+Поверніть лише «УНІКАЛЬНА», якщо стаття є унікальною, або «ДУБЛІКАТ», якщо вона істотно схожа на будь-яку існуючу статтю.
 
-Consider articles as duplicates if they:
-- Cover the same main event or story
-- Have very similar key facts and information
-- Are about the same person, company, or specific incident
+Вважайте статті дублікатами, якщо вони:
+- Висвітлюють ту саму головну подію або історію.
+- Містять дуже схожі ключові факти та інформацію.
+- Стосуються тієї самої особи, компанії або конкретного інциденту.
 
-Consider articles as unique if they:
-- Cover different topics entirely
-- Provide new angles or perspectives on related but distinct events
-- Focus on different aspects of a broader topic
+Вважайте статті унікальними, якщо вони:
+- Висвітлюють повністю різні теми.
+- Надають нові кути зору або перспективи на пов'язані, але відмінні події.
+- Фокусуються на різних аспектах ширшої теми.
 
-NEW ARTICLE:
+НОВА СТАТТЯ:
 {new_content}
 
-EXISTING ARTICLES FROM TODAY:
+ІСНУЮЧІ СТАТТІ ВІД СЬОГОДНІ:
 {existing_content}
 
-Response (UNIQUE or DUPLICATE):
+Відповідь (УНІКАЛЬНА або ДУБЛІКАТ):

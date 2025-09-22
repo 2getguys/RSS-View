@@ -88,13 +88,16 @@ def get_article_by_telegraph_url(telegraph_url: str) -> dict | None:
     return None
 
 def get_article_by_id(article_id: int) -> dict | None:
-    """Retrieves article data by its ID."""
+    """Retrieves article data by its ID, including its content."""
     conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row  # Allows accessing columns by name
     cursor = conn.cursor()
-    cursor.execute('SELECT id, title, telegraph_url FROM articles WHERE id = ?', (article_id,))
+    # Fetch the translated_content as it's the final, processed version
+    cursor.execute('SELECT id, title, telegraph_url, translated_content FROM articles WHERE id = ?', (article_id,))
     result = cursor.fetchone()
     conn.close()
     if result:
-        return {"id": result[0], "title": result[1], "telegraph_url": result[2]}
+        # Convert the sqlite3.Row object to a dictionary
+        return dict(result)
     return None
 

@@ -12,6 +12,8 @@ PUBLISH_NEWS_CHANNEL_ID = os.getenv("PUBLISH_NEWS_CHANNEL_ID")
 TELEGRAPH_ACCESS_TOKEN = os.getenv("TELEGRAPH_ACCESS_TOKEN")
 RSS_ARTICLES_COUNT = int(os.getenv("RSS_ARTICLES_COUNT", "5"))  # Default to 5 if not set
 CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "60")) # Default to 60 seconds
+MAKE_WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL")
+
 
 # Basic validation to ensure all variables are set
 if not all([

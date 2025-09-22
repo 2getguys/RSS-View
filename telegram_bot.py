@@ -1,7 +1,9 @@
 import asyncio
+import httpx
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from config import TELEGRAM_BOT_TOKEN, PUBLISH_NEWS_CHANNEL_ID, PREVIEW_NEWS_CHANNEL_ID
+from config import TELEGRAM_BOT_TOKEN, PUBLISH_NEWS_CHANNEL_ID, PREVIEW_NEWS_CHANNEL_ID, MAKE_WEBHOOK_URL
+from ai_handler import generate_facebook_post
 
 # Initialize the bot application
 application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
@@ -81,13 +83,55 @@ async def handle_publish_callback(update: Update, context: ContextTypes.DEFAULT_
             publish_text = '\n'.join(filtered_lines).strip()
             
             # Send the formatted message to the public channel
-            await application.bot.send_message(
+            sent_message = await application.bot.send_message(
                 chat_id=PUBLISH_NEWS_CHANNEL_ID,
                 text=publish_text,
                 parse_mode='HTML',
                 disable_web_page_preview=False
             )
             print(f"Published article: {telegraph_url}")
+            
+            # --- Start Webhook Logic ---
+            if MAKE_WEBHOOK_URL:
+                try:
+                    # 1. Get Telegram post link
+                    if sent_message.chat.username:
+                        post_url = f"https://t.me/{sent_message.chat.username}/{sent_message.message_id}"
+                    else:
+                        # For private channels, chat_id is a negative number.
+                        # The link format is t.me/c/channel_id/message_id
+                        chat_id_str = str(sent_message.chat.id).replace("-100", "")
+                        post_url = f"https://t.me/c/{chat_id_str}/{sent_message.message_id}"
+                    
+                    print(f"🔗 Generated Telegram post link: {post_url}")
+                    
+                    # 2. Generate Facebook post content from the processed article content
+                    article_content = article.get('translated_content', '')
+                    
+                    if not article_content:
+                        print(f"⚠️ Warning: Article {article_id} has no content. AI generation might be inaccurate.")
+
+                    facebook_post_text = generate_facebook_post(article_content)
+
+                    # 3. Send webhook to Make.com
+                    webhook_payload = {
+                        "facebook_post": facebook_post_text, # The AI prompt already includes the call to action
+                        "telegram_post_url": post_url
+                    }
+                    
+                    print(f"📦 Webhook payload to be sent: {webhook_payload}") # Enhanced logging
+
+                    async with httpx.AsyncClient() as client:
+                        response = await client.post(MAKE_WEBHOOK_URL, json=webhook_payload)
+                        response.raise_for_status() # Raise an exception for bad status codes
+                    
+                    print(f"✅ Successfully sent webhook to Make.com. Status: {response.status_code}")
+
+                except httpx.RequestError as e:
+                    print(f"❌ Error sending webhook to Make.com: {e}")
+                except Exception as e:
+                    print(f"❌ An unexpected error occurred in the webhook logic: {e}")
+            # --- End Webhook Logic ---
 
             # Edit the original message in the moderation channel
             await query.edit_message_text(

@@ -25,8 +25,8 @@ async def check_news_job():
             print("\n🔍 --- Checking for new articles... ---")
             
             # Create debug directory if it doesn't exist
-            debug_dir = "debug_files"
-            os.makedirs(debug_dir, exist_ok=True)
+            # debug_dir = "debug_files"
+            # os.makedirs(debug_dir, exist_ok=True)
             
             # 1. Get latest articles from RSS
             print("📡 Fetching RSS feed (last 5 articles)...")
@@ -56,10 +56,10 @@ async def check_news_job():
                 print("🆕 New article found! Starting processing...")
                 
                 # 1. Save RSS data
-                rss_file = f"{debug_dir}/rss_data_article_{i}.json"
-                with open(rss_file, 'w', encoding='utf-8') as f:
-                    json.dump(article, f, indent=2, ensure_ascii=False)
-                print(f"💾 Saved RSS data to: {rss_file}")
+                # rss_file = f"{debug_dir}/rss_data_article_{i}.json"
+                # with open(rss_file, 'w', encoding='utf-8') as f:
+                #     json.dump(article, f, indent=2, ensure_ascii=False)
+                # print(f"💾 Saved RSS data to: {rss_file}")
                 
                 # 2. Scrape article content
                 print("🕷️ Scraping article content...")
@@ -71,23 +71,27 @@ async def check_news_job():
                 print(f"✅ Content scraped successfully ({len(scraped_content['content_html'])} chars)")
                 
                 # 2. Save raw HTML data (original from website)
-                raw_html_file = f"{debug_dir}/raw_html_article_{i}.html"
-                with open(raw_html_file, 'w', encoding='utf-8') as f:
-                    f.write(f"<!-- Title: {scraped_content['title']} -->\n")
-                    f.write(f"<!-- URL: {link} -->\n")
-                    f.write(f"<!-- Image: {scraped_content.get('image_url', 'None')} -->\n")
-                    f.write(f"<!-- This is the ORIGINAL HTML from the website -->\n\n")
-                    f.write(scraped_content['raw_html'])
-                print(f"💾 Saved raw HTML to: {raw_html_file}")
+                # raw_html_file = f"{debug_dir}/raw_html_article_{i}.html"
+                # with open(raw_html_file, 'w', encoding='utf-8') as f:
+                #     f.write(f"<!-- Title: {scraped_content['title']} -->\n")
+                #     f.write(f"<!-- URL: {link} -->\n")
+                #     f.write(f"<!-- Image: {scraped_content.get('image_url', 'None')} -->\n")
+                #     f.write(f"<!-- This is the ORIGINAL HTML from the website -->\n\n")
+                #     f.write(scraped_content['raw_html'])
+                # print(f"💾 Saved raw HTML to: {raw_html_file}")
                 
                 # 3. Check for semantic uniqueness with AI FIRST (before expensive operations)
                 print("🤖 Checking for duplicates with AI...")
                 todays_articles = await asyncio.to_thread(get_todays_articles_content)
-                is_duplicate = await asyncio.to_thread(
+                is_unique = await asyncio.to_thread(
                     is_article_unique, scraped_content['content_html'], todays_articles
                 )
-                if not is_duplicate:
-                    print("⚠️ Article appears to be a semantic duplicate, skipping...")
+                if not is_unique:
+                    print("⚠️ Article appears to be a semantic duplicate, skipping processing...")
+                    # Add the article to the DB with a special marker in content
+                    # to prevent it from being scraped and checked again in the future.
+                    await asyncio.to_thread(add_article_base, link, title, "SEMANTIC_DUPLICATE_CHECKED")
+                    print("📝 Saved as duplicate to prevent future checks.")
                     continue
                 
                 print("✅ Article is unique!")
@@ -140,16 +144,16 @@ async def check_news_job():
                     continue
 
                 # 9. Save processed content for debugging
-                processed_file = f"{debug_dir}/processed_article_{i}.html"
-                with open(processed_file, 'w', encoding='utf-8') as f:
-                    f.write(f"<!-- Original Title: {scraped_content['title']} -->\n")
-                    f.write(f"<!-- Processed Title: {final_title} -->\n")
-                    f.write(f"<!-- URL: {link} -->\n")
-                    f.write(f"<!-- Original Length: {len(scraped_content['content_html'])} chars -->\n")
-                    f.write(f"<!-- Processed Length: {len(processed_content)} chars -->\n")
-                    f.write(f"<!-- Description: {final_description} -->\n")
-                    f.write(processed_content)
-                print(f"💾 Saved processed content to: {processed_file}")
+                # processed_file = f"{debug_dir}/processed_article_{i}.html"
+                # with open(processed_file, 'w', encoding='utf-8') as f:
+                #     f.write(f"<!-- Original Title: {scraped_content['title']} -->\n")
+                #     f.write(f"<!-- Processed Title: {final_title} -->\n")
+                #     f.write(f"<!-- URL: {link} -->\n")
+                #     f.write(f"<!-- Original Length: {len(scraped_content['content_html'])} chars -->\n")
+                #     f.write(f"<!-- Processed Length: {len(processed_content)} chars -->\n")
+                #     f.write(f"<!-- Description: {final_description} -->\n")
+                #     f.write(processed_content)
+                # print(f"💾 Saved processed content to: {processed_file}")
 
                 # 10. Update database with Telegraph URL
                 await asyncio.to_thread(update_article_translation, article_id, processed_content, telegraph_url)

@@ -41,7 +41,8 @@ def is_article_unique(new_article_content: str, existing_articles_content: List[
             ],
         )
         answer = response.choices[0].message.content.strip().upper()
-        return "UNIQUE" in answer
+        # Перевіряємо як англійську, так і українську відповідь
+        return "UNIQUE" in answer or "УНІКАЛЬНА" in answer
 
     except Exception as e:
         print(f"Error checking article uniqueness with OpenAI: {e}")

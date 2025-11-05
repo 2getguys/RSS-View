@@ -59,11 +59,14 @@ async def handle_publish_callback(update: Update, context: ContextTypes.DEFAULT_
             
             if not article or not article.get('telegraph_url'):
                 print(f"Article {article_id} not found or has no Telegraph URL")
-                await query.edit_message_text(
-                    text=f"{query.message.text_html}\n\n<b>❌ Помилка: стаття не знайдена</b>",
-                    parse_mode='HTML',
-                    disable_web_page_preview=False
-                )
+                try:
+                    await query.edit_message_text(
+                        text=f"{query.message.text_html}\n\n<b>❌ Помилка: стаття не знайдена</b>",
+                        parse_mode='HTML',
+                        disable_web_page_preview=False
+                    )
+                except Exception as e:
+                    print(f"⚠️ Could not edit message: {e}")
                 return
             
             telegraph_url = article['telegraph_url']
@@ -89,9 +92,9 @@ async def handle_publish_callback(update: Update, context: ContextTypes.DEFAULT_
                 parse_mode='HTML',
                 disable_web_page_preview=False
             )
-            print(f"Published article: {telegraph_url}")
+            print(f"✅ Published article: {telegraph_url}")
             
-            # --- Start Webhook Logic ---
+            # --- Start Webhook Logic (async, with timeout protection) ---
             if MAKE_WEBHOOK_URL:
                 try:
                     # 1. Get Telegram post link
@@ -111,49 +114,73 @@ async def handle_publish_callback(update: Update, context: ContextTypes.DEFAULT_
                     if not article_content:
                         print(f"⚠️ Warning: Article {article_id} has no content. AI generation might be inaccurate.")
 
+                    print(f"🤖 Generating Facebook post...")
                     facebook_post_text = generate_facebook_post(article_content)
+                    print(f"✅ Facebook post generated")
 
-                    # 3. Send webhook to Make.com
+                    # 3. Send webhook to Make.com with timeout
                     webhook_payload = {
                         "facebook_post": facebook_post_text, # The AI prompt already includes the call to action
                         "telegram_post_url": post_url
                     }
                     
-                    print(f"📦 Webhook payload to be sent: {webhook_payload}") # Enhanced logging
+                    # Add image_url only if it exists
+                    image_url = article.get('image_url')
+                    if image_url:
+                        webhook_payload["image_url"] = image_url
+                        print(f"🖼️ Including image URL: {image_url}")
+                    else:
+                        print(f"📷 No image found for this article")
+                    
+                    print(f"📦 Sending webhook to Make.com...")
 
-                    async with httpx.AsyncClient() as client:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
                         response = await client.post(MAKE_WEBHOOK_URL, json=webhook_payload)
                         response.raise_for_status() # Raise an exception for bad status codes
                     
                     print(f"✅ Successfully sent webhook to Make.com. Status: {response.status_code}")
 
+                except httpx.TimeoutException as e:
+                    print(f"⚠️ Webhook timeout (Make.com took too long): {e}")
                 except httpx.RequestError as e:
                     print(f"❌ Error sending webhook to Make.com: {e}")
                 except Exception as e:
                     print(f"❌ An unexpected error occurred in the webhook logic: {e}")
             # --- End Webhook Logic ---
 
-            # Edit the original message in the moderation channel
-            await query.edit_message_text(
-                text=f"{query.message.text_html}\n\n<b>✅ Опубліковано</b>",
-                parse_mode='HTML',
-                disable_web_page_preview=False
-            )
+            # Edit the original message in the moderation channel (with error handling)
+            try:
+                await query.edit_message_text(
+                    text=f"{query.message.text_html}\n\n<b>✅ Опубліковано</b>",
+                    parse_mode='HTML',
+                    disable_web_page_preview=False
+                )
+            except Exception as e:
+                print(f"⚠️ Could not edit moderation message (probably timeout): {e}")
+                print("✅ Article was published successfully despite the error")
 
         except ValueError:
             print(f"Invalid article ID in callback data: {callback_data}")
-            await query.edit_message_text(
-                text=f"{query.message.text_html}\n\n<b>❌ Помилка: невірний ID статті</b>",
-                parse_mode='HTML',
-                disable_web_page_preview=False
-            )
+            try:
+                await query.edit_message_text(
+                    text=f"{query.message.text_html}\n\n<b>❌ Помилка: невірний ID статті</b>",
+                    parse_mode='HTML',
+                    disable_web_page_preview=False
+                )
+            except Exception as e:
+                print(f"⚠️ Could not edit message: {e}")
         except Exception as e:
-            print(f"Error during publishing: {e}")
-            await query.edit_message_text(
-                text=f"{query.message.text_html}\n\n<b>❌ Помилка публікації:</b> {e}",
-                parse_mode='HTML',
-                disable_web_page_preview=False
-            )
+            print(f"❌ Error during publishing: {e}")
+            import traceback
+            traceback.print_exc()
+            try:
+                await query.edit_message_text(
+                    text=f"{query.message.text_html}\n\n<b>❌ Помилка публікації</b>",
+                    parse_mode='HTML',
+                    disable_web_page_preview=False
+                )
+            except Exception as edit_error:
+                print(f"⚠️ Could not edit message: {edit_error}")
 
 # Add the callback handler to the application
 application.add_handler(CallbackQueryHandler(handle_publish_callback, pattern=r'^pub_'))

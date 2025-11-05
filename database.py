@@ -15,6 +15,7 @@ def init_db():
             original_content TEXT,
             translated_content TEXT,
             telegraph_url TEXT,
+            image_url TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -22,15 +23,15 @@ def init_db():
     conn.close()
     print("Database initialized.")
 
-def add_article_base(original_url: str, title: str, original_content: str) -> int | None:
+def add_article_base(original_url: str, title: str, original_content: str, image_url: str = None) -> int | None:
     """Adds a new article with its original content and returns the new row's ID."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            INSERT INTO articles (original_url, title, original_content)
-            VALUES (?, ?, ?)
-        ''', (original_url, title, original_content))
+            INSERT INTO articles (original_url, title, original_content, image_url)
+            VALUES (?, ?, ?, ?)
+        ''', (original_url, title, original_content, image_url))
         conn.commit()
         return cursor.lastrowid
     except sqlite3.IntegrityError:
@@ -93,7 +94,7 @@ def get_article_by_id(article_id: int) -> dict | None:
     conn.row_factory = sqlite3.Row  # Allows accessing columns by name
     cursor = conn.cursor()
     # Fetch the translated_content as it's the final, processed version
-    cursor.execute('SELECT id, title, telegraph_url, translated_content FROM articles WHERE id = ?', (article_id,))
+    cursor.execute('SELECT id, title, telegraph_url, translated_content, image_url FROM articles WHERE id = ?', (article_id,))
     result = cursor.fetchone()
     conn.close()
     if result:

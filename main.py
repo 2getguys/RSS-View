@@ -28,16 +28,26 @@ async def check_news_job():
             # debug_dir = "debug_files"
             # os.makedirs(debug_dir, exist_ok=True)
             
-            # 1. Get latest articles from RSS
-            print("📡 Fetching RSS feed (last 5 articles)...")
+            # 1. Get latest articles from RSS feeds
+            print("📡 Fetching RSS feeds (last 5 articles per feed)...")
             from config import RSS_FEEDS, RSS_ARTICLES_COUNT
-            articles = get_latest_articles(RSS_FEEDS, RSS_ARTICLES_COUNT)
+            
+            # Collect articles from all RSS feeds
+            articles = []
+            for feed_url in RSS_FEEDS:
+                print(f"📡 Fetching from feed: {feed_url}")
+                feed_articles = get_latest_articles(feed_url, RSS_ARTICLES_COUNT)
+                if feed_articles:
+                    articles.extend(feed_articles)
+                    print(f"✅ Found {len(feed_articles)} article(s) from this feed")
+                else:
+                    print(f"📭 No articles found in this feed")
             
             if not articles:
-                print("📭 No articles found in RSS feed")
+                print("📭 No articles found in any RSS feeds")
                 return
                 
-            print(f"📊 Found {len(articles)} article(s) to check")
+            print(f"📊 Found {len(articles)} total article(s) to check from {len(RSS_FEEDS)} feed(s)")
             
             processed_count = 0
             
@@ -90,7 +100,7 @@ async def check_news_job():
                     print("⚠️ Article appears to be a semantic duplicate, skipping processing...")
                     # Add the article to the DB with a special marker in content
                     # to prevent it from being scraped and checked again in the future.
-                    await asyncio.to_thread(add_article_base, link, title, "SEMANTIC_DUPLICATE_CHECKED")
+                    await asyncio.to_thread(add_article_base, link, title, "SEMANTIC_DUPLICATE_CHECKED", None)
                     print("📝 Saved as duplicate to prevent future checks.")
                     continue
                 
@@ -138,7 +148,8 @@ async def check_news_job():
 
                 # 8. Save to database
                 print("💾 Saving to database...")
-                article_id = await asyncio.to_thread(add_article_base, link, final_title, processed_content)
+                image_url = scraped_content.get('image_url')
+                article_id = await asyncio.to_thread(add_article_base, link, final_title, processed_content, image_url)
                 if not article_id:
                     print("❌ Failed to save article to database")
                     continue
